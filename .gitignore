@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Env / IDE
+.env
+.vscode/
+.DS_Store
+
+# Logs
+*.log
+logs/
+logs_archive/
+lightning_logs/
+
+# Data
+data/
+datasets/
+UCRArchive_2018/
+UCRArchive_2018.zip
+simulated_data_l2x/
+
+# Models / checkpoints
+model/
+models/
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.pkl
+
+# Results
+result/
+results_*/
+results_comp/
+results_filter/
+results_last/
+results_new/
+results_our/
+results_residual_first/
+results_100_jiyu/
+results_table/
+results_table_filter/
+*.csv
+
+# Figures / visualizations
+figs_positional/
+figs_positional_filter/
+viz_out/
+viz_out_last/
+viz_out_last_top3/
+viz_td/
+viz_td_new/
