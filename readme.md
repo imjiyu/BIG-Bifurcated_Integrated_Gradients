@@ -17,21 +17,40 @@ Built on top of TIMING (Jang et al., 2025).
 Step 1: Attribution 생성 (main_td.py)  
 Step 2: 평가 (main_preserve_td.py / main_preserve.py)  
 
-## Path Completeness Check (Table 2)
-⚠️ normalization 스위치 주의사항  
-`check_completeness.py` 실행 전 attribution 값을 구할 때, `explainers_td.py`의 `_ig_phase` 내
-normalization을 global normalization으로 교체해야 합니다.
+## Path Completeness Check (Table 2)  
+> ⚠️ **Normalization switch required**
 
-# 주석 해제 (completeness)
+`check_completeness.py`는 Path Completeness를 확인하기 위한 코드입니다.  
+따라서 실행 전, 초기 attribution 값을 구할 때 `explainers_td.py`의 `_ig_phase` 함수 내부에서 attribution normalization 방식을 **per-position normalization**에서 **global normalization**으로 변경해야 합니다.
+
+### Completeness check 설정  
+
+`_ig_phase` 내부에서 아래 코드를 사용합니다.
+
+```python
 attr = attr_sum / n_alphas
 attr = attr.mean(dim=0)
+```
 
-# 주석 처리 (per-position normalization)
-# N_free = ...
+그리고 기존 per-position normalization 코드는 주석 처리합니다.
+
+```python
+# N_free = time_mask.sum(dim=0)
 # attr = attr_sum.sum(dim=0) / (n_alphas * N_free.clamp_min(1))
-# attr = torch.where(...)
+# attr = torch.where(N_free > 0, attr, torch.zeros_like(attr))
+```
 
-메인 faithfulness 평가에는 per-position normalization을 사용합니다. 
+### Main faithfulness evaluation 설정
+
+메인 faithfulness 평가는 기존 방식인 **per-position normalization**을 사용합니다.
+
+```python
+N_free = time_mask.sum(dim=0)
+attr = attr_sum.sum(dim=0) / (n_alphas * N_free.clamp_min(1))
+attr = torch.where(N_free > 0, attr, torch.zeros_like(attr))
+```
+
+즉, `check_completeness.py`를 실행할 때만 global normalization으로 변경하고, 일반적인 faithfulness 평가에서는 per-position normalization을 사용합니다.
 
 
 ---
