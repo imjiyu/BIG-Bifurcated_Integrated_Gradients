@@ -14,12 +14,24 @@ Built on top of TIMING (Jang et al., 2025).
 ...
 
 ## Reproducing Results
-Step 1: Attribution 생성 (main_td.py)
-Step 2: 평가 (main_preserve_td.py / main_preserve.py)
+Step 1: Attribution 생성 (main_td.py)  
+Step 2: 평가 (main_preserve_td.py / main_preserve.py)  
 
 ## Path Completeness Check (Table 2)
-⚠️ normalization 스위치 주의사항 포함
+⚠️ normalization 스위치 주의사항  
+`check_completeness.py` 실행 전 attribution 값을 구할 때, `explainers_td.py`의 `_ig_phase` 내
+normalization을 global normalization으로 교체해야 합니다.
 
+# 주석 해제 (completeness)
+attr = attr_sum / n_alphas
+attr = attr.mean(dim=0)
+
+# 주석 처리 (per-position normalization)
+# N_free = ...
+# attr = attr_sum.sum(dim=0) / (n_alphas * N_free.clamp_min(1))
+# attr = torch.where(...)
+
+메인 faithfulness 평가에는 per-position normalization을 사용합니다. 
 
 
 ---
