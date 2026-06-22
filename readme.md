@@ -1,14 +1,32 @@
+# Bifurcated Integrated Gradients (BIG)
+Trend-Residual Path Decomposition for Time Series Attribution
+KCC 2026 XAI Workshop
+
+## Overview
+BIG decomposes attribution into trend and residual components
+by routing the IG path through c → T_x → x.
+Built on top of TIMING (Jang et al., 2025).
+
+## Requirements
+...
+
+## Output Directories
+...
+
+## Reproducing Results
+Step 1: Attribution 생성 (main_td.py)
+Step 2: 평가 (main_preserve_td.py / main_preserve.py)
+
+## Path Completeness Check (Table 2)
+⚠️ normalization 스위치 주의사항 포함
+
+
+
+---
+
+
+
 # TIMING: Temporality-Aware Integrated Gradients for Time Series Explanation
-[![arXiv](https://img.shields.io/badge/arXiv-2506.05035-b31b1b.svg)](https://arxiv.org/abs/2506.05035)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15671176.svg)](https://doi.org/10.5281/zenodo.15671176)
-
-[**TIMING: Temporality-Aware Integrated Gradients for Time Series Explanation**](https://arxiv.org/abs/2506.05035)<br>
-Hyeongwon Jang*, Changhun Kim*, Eunho Yang (*: equal contribution)<br>
-International Conference on Machine Learning (**ICML**), 2025 (Spotlight Presentation, 313/12107=2.6%)
-
-![](https://github.com/drumpt/drumpt.github.io/blob/main/content/publications/timing/featured.png)
-
-
 
 ## Introduction
 Official implementation for **TIMING: Temporality-Aware Integrated Gradients for Time Series Explanation**. TIMING is implemented in PyTorch and tested on different time series datasets, including switch-feature, state, Mimic-III, PAM, Epilespy, boiler, freezer, and wafer. Our overall experiments are based on [time_interpret](https://github.com/josephenguehard/time_interpret), [ContraLSP](https://github.com/zichuan-liu/ContraLSP), [TimeX++](https://github.com/zichuan-liu/TimeXplusplus), [WinIT](https://github.com/layer6ai-labs/WinIT). 
