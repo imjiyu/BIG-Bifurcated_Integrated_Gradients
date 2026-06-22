@@ -1,38 +1,104 @@
 # Bifurcated Integrated Gradients (BIG)
-Trend-Residual Path Decomposition for Time Series Attribution
+
+**Trend-Residual Path Decomposition for Time Series Attribution**  
 KCC 2026 XAI Workshop
 
 ## Overview
-BIG decomposes attribution into trend and residual components
-by routing the IG path through c → T_x → x.
-Built on top of TIMING (Jang et al., 2025).
+
+BIG decomposes attribution into trend and residual components by routing the IG integration path through **c → T_x → x**. Path additivity of Integrated Gradients guarantees that the two phases yield an exact decomposition: A_T + A_R = F(x) − F(c_M). Built on top of [TIMING (Jang et al., 2025)](https://arxiv.org/abs/2506.05035).
 
 ## Requirements
-...
+
+```bash
+pip install torch pytorch-lightning captum pykalman tint
+```
 
 ## Output Directories
-...
+
+| Directory | Description |
+|---|---|
+| `results_our/` | Main results — Kalman **smoother**, per-position normalization (Tables 3, 4, 6) |
+| `results_filter/` | Ablation — Kalman **filter** variant (Table 5) |
+| `results_comp/` | Completeness diagnostic — global normalization only (Table 2) |
 
 ## Reproducing Results
-Step 1: Attribution 생성 (main_td.py)  
-Step 2: 평가 (main_preserve_td.py / main_preserve.py)  
 
-## Path Completeness Check (Table 2)  
-> ⚠️ **Normalization switch required**
+### Step 1: Generate Attributions
 
-`check_completeness.py`는 Path Completeness를 확인하기 위한 코드입니다.  
-따라서 실행 전, 초기 attribution 값을 구할 때 `explainers_td.py`의 `_ig_phase` 함수 내부에서 attribution normalization 방식을 **per-position normalization**에서 **global normalization**으로 변경해야 합니다.
+Run `main_td.py` with `--explainers our_td`. Results are saved to `results_our/`.
 
-### Completeness check 설정  
+```bash
+python real/main_td.py \
+  --explainers our_td \
+  --data boiler \        # boiler | PAM | epilepsy | freezer | wafer
+  --device cuda:0 \
+  --fold 0 \
+  --seed 42 \
+  --num_segments 50 \
+  --min_seg_len 1 \
+  --max_seg_len 36 \
+  --testbs 200
+```
 
-`_ig_phase` 내부에서 아래 코드를 사용합니다.
+Repeat for all 5 datasets and folds 0–4.
+
+### Step 2: Evaluate — Component Analysis (Table 3)
+
+Reads from `results_our/`, evaluates Trend vs. Residual per dataset.
+
+```bash
+python real/main_preserve_td.py \
+  --data boiler \
+  --device cuda:0 \
+  --fold 0 \
+  --seed 42 \
+  --num_segments 50 \
+  --min_seg_len 1 \
+  --max_seg_len 36 \
+  --output-file results_td.csv \
+  --testbs 200
+```
+
+### Step 2: Evaluate — Aggregation & Baseline Comparison (Tables 4, 6)
+
+Reads from `results_our/`, compares `|T+R|` vs. `|T|+|R|` vs. TIMING.
+
+```bash
+python real/main_preserve.py \
+  --data boiler \
+  --device cuda:0 \
+  --fold 0 \
+  --seed 42 \
+  --num_segments 50 \
+  --min_seg_len 1 \
+  --max_seg_len 36 \
+  --output-file results_preserve.csv \
+  --testbs 200
+```
+
+### (Optional) Kalman Filter Ablation (Table 5)
+
+Switch the import in `main_td.py` from `explainers_td` to the filter variant, and change the save directory to `results_filter/`, then re-run Step 1 and Step 2.
+
+---
+
+## Path Completeness Check (Table 2)
+
+> ⚠️ **Normalization switch required before running this step.**
+
+`check_completeness.py`는 sum(T_signed + R_signed) / (F(x) − F(c))가 1에 수렴하는지 검산하는 코드입니다.  
+Per-position normalization은 cross-position 비교용이므로 completeness ratio 계산에 적합하지 않습니다. 실행 전 `explainers_td.py`의 `_ig_phase` 내 normalization을 **global normalization**으로 교체하고, 결과를 `results_comp/`에 저장해야 합니다.
+
+### Completeness check 설정
+
+`_ig_phase` 내부에서 아래 코드를 활성화합니다.
 
 ```python
 attr = attr_sum / n_alphas
 attr = attr.mean(dim=0)
 ```
 
-그리고 기존 per-position normalization 코드는 주석 처리합니다.
+그리고 per-position normalization 코드는 주석 처리합니다.
 
 ```python
 # N_free = time_mask.sum(dim=0)
@@ -40,9 +106,11 @@ attr = attr.mean(dim=0)
 # attr = torch.where(N_free > 0, attr, torch.zeros_like(attr))
 ```
 
+또한 `main_td.py` 저장 경로를 `results_comp/`로 변경한 뒤 Step 1을 재실행합니다.
+
 ### Main faithfulness evaluation 설정
 
-메인 faithfulness 평가는 기존 방식인 **per-position normalization**을 사용합니다.
+메인 평가(Tables 3, 4, 6)에서는 반드시 **per-position normalization**을 사용합니다.
 
 ```python
 N_free = time_mask.sum(dim=0)
@@ -50,8 +118,31 @@ attr = attr_sum.sum(dim=0) / (n_alphas * N_free.clamp_min(1))
 attr = torch.where(N_free > 0, attr, torch.zeros_like(attr))
 ```
 
-즉, `check_completeness.py`를 실행할 때만 global normalization으로 변경하고, 일반적인 faithfulness 평가에서는 per-position normalization을 사용합니다.
+### Running the diagnostic
 
+```bash
+python check_completeness.py \
+  --model state \
+  --seed 42 \
+  --folds 0 1 2 3 4 \
+  --results-dir ./results_comp \
+  > completeness_check.txt
+```
+
+결과(`completeness_check.txt`)에서 `all_med`가 1.0에 가깝고 `norm_err`가 0에 가까우면 정상입니다.
+
+---
+
+## Citation
+
+```bibtex
+@inproceedings{lim2026big,
+  title     = {Bifurcated Integrated Gradients: Trend-Residual Path Decomposition for Time Series Attribution},
+  author    = {Lim, Jiyu and Yeo, Jisu and Lim, Haksoo and Choi, Jaesik},
+  booktitle = {KCC 2026 XAI Workshop},
+  year      = {2026}
+}
+```
 
 ---
 
