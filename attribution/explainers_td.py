@@ -22,7 +22,7 @@ def apply_kalman_smoother(series, observation_covariance, transition_covariance)
     return pd.Series(filtered_state_means.flatten(), index=series.index)
 
 """
-# Kalman-Filter ver. (칼만 필터 코드)
+# Kalman-Filter ver. (칼만 필터 코드 / + 아래에도 apply_kalman_filter로 바꾸기)
 def apply_kalman_filter(series, observation_covariance, transition_covariance):
     kf = KalmanFilter(
         initial_state_mean=series.iloc[0],
