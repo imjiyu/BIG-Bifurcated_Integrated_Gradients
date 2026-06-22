@@ -231,11 +231,6 @@ def main(
         attr[f"timing_td_T_plus_R_{SEG}"]        = trend_signed.abs() + resid_signed.abs()
     ###
 
-    timesteps = (
-        th.linspace(0, 1, t_len, device=x_test.device)
-        .unsqueeze(0).repeat(data_len, 1)
-    )
-
     if viz and "our_td" in explainers:
         import matplotlib
         matplotlib.use("Agg")
