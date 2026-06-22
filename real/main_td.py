@@ -805,7 +805,7 @@ def main(
     ###
     # real/main.py 의 if "our" 블록 (L765~803) 바로 아래에 추가
     if "our_td" in explainers: 
-        from attribution.explainers_td import OUR_TD  ### residual 실험용으로 바꿈!! 원래는 "results_new" ^~^
+        from attribution.explainers_td import OUR_TD
         explainer = OUR_TD(classifier.predict)
         
         trend_results, resid_results, fxc_results = [], [], []
@@ -835,15 +835,15 @@ def main(
                 max_seg_len=max_seg_len,
                 kalman_obs_cov=1.0,
                 kalman_trans_cov=0.01,
-                n_alphas=50, # 추가!
-                alpha_chunk=10, # 얘도 추가!
+                n_alphas=50, 
+                alpha_chunk=10, # OOM 방지... 추가!
             )
 
             trend_results.append(trend_attr.detach().cpu())
             resid_results.append(resid_attr.detach().cpu())
             fxc_results.append(fxc.detach().cpu())
     
-        SEG = f"kalman_seg{num_segments}_min{min_seg_len}_max{max_seg_len}" ### residual 실험용으로 바꿈!! 원래는 _rsd없음!
+        SEG = f"kalman_seg{num_segments}_min{min_seg_len}_max{max_seg_len}"
 
         trend_signed = th.cat(trend_results, dim=0)
         resid_signed = th.cat(resid_results, dim=0)
@@ -1026,6 +1026,8 @@ def main(
         .repeat(data_len, 1)
     )
 
+### 평가 부분은 main_preserve_td.py 에서 진행하므로 주석 처리
+
 #    with open(output_file, "a") as fp, lock:
 #        for i, baselines in enumerate([x_avg, 0.0]):
 #            for topk in areas:
@@ -1149,12 +1151,12 @@ def main(
 #                    fp.write(f"{mean_suff:.4}")
 #                    fp.write("\n")
 
-    if not os.path.exists("./results_filter/"): ### 실험용으로 바꿈!! last=attf성능비교용 / comp=fxc검산용 / filter=칼만필터용 
-        os.makedirs("./results_filter/")
+    if not os.path.exists("./results_our/"): ### 실험에 따라 폴더 바꾸기!! _our=칼만스무더용 / _comp=fxc검산용 / _filter=칼만필터용 
+        os.makedirs("./results_our/")
     for key in attr.keys():
         result = attr[key]
         if isinstance(result, tuple): result = result[0]
-        np.save('./results_filter/{}_{}_{}_result_{}_{}.npy'.format(data, model_type, key, fold, seed), result.detach().cpu().numpy())
+        np.save('./results_our/{}_{}_{}_result_{}_{}.npy'.format(data, model_type, key, fold, seed), result.detach().cpu().numpy())
     
     print(f"{explainers} done")
 
