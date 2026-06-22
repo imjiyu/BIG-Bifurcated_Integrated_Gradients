@@ -131,18 +131,7 @@ python check_completeness.py \
 
 결과(`completeness_check.txt`)에서 `all_med`가 1.0에 가깝고 `norm_err`가 0에 가까우면 정상입니다.
 
----
 
-## Citation
-
-```bibtex
-@inproceedings{lim2026big,
-  title     = {Bifurcated Integrated Gradients: Trend-Residual Path Decomposition for Time Series Attribution},
-  author    = {Lim, Jiyu and Yeo, Jisu and Lim, Haksoo and Choi, Jaesik},
-  booktitle = {KCC 2026 XAI Workshop},
-  year      = {2026}
-}
-```
 
 ---
 
