@@ -1,7 +1,7 @@
 """
-Trend-Residual decomposition extension of TIMING. (alpha-chunked, OOM-safe)
+Trend-Residual decomposition extension of TIMING.
 Trend는 원본 x에서 Kalman(pykalman)으로 global하게 한 번만 추출, Residual = x - Trend.
-(모든 mask sample이 그 trend를 공유하도록 진짜 진짜 최종 수정 / mask마다 trend를 다시 뽑지 않음!!!)
+(모든 mask sample이 그 trend를 공유하도록 최종 수정 / mask마다 trend를 다시 뽑지 않음!)
 """
 
 import torch
@@ -9,8 +9,6 @@ import numpy as np
 import pandas as pd
 from pykalman import KalmanFilter
 
-"""
-잠시 kalman filter로 실험중! -> 이거로 컨f 찾아서 되돌려놓기
 def apply_kalman_smoother(series, observation_covariance, transition_covariance):
     kf = KalmanFilter(
         initial_state_mean=series.iloc[0],
@@ -20,10 +18,11 @@ def apply_kalman_smoother(series, observation_covariance, transition_covariance)
         observation_covariance=observation_covariance,
         transition_covariance=transition_covariance,
     )
-    filtered_state_means, _ = kf.smooth(series.values) # filter → smooth로 바꿈! 
+    filtered_state_means, _ = kf.smooth(series.values)
     return pd.Series(filtered_state_means.flatten(), index=series.index)
-"""
 
+"""
+# Kalman-Filter ver. (칼만 필터 코드)
 def apply_kalman_filter(series, observation_covariance, transition_covariance):
     kf = KalmanFilter(
         initial_state_mean=series.iloc[0],
@@ -35,6 +34,7 @@ def apply_kalman_filter(series, observation_covariance, transition_covariance):
     )
     filtered_state_means, _ = kf.filter(series.values)
     return pd.Series(filtered_state_means.flatten(), index=series.index)
+"""
 
 def compute_trend_kalman(inputs, observation_covariance=1.0, transition_covariance=0.01):
     """원본 시계열 x에서 Kalman smoother로 trend 추출"""
@@ -45,13 +45,7 @@ def compute_trend_kalman(inputs, observation_covariance=1.0, transition_covarian
     for b in range(B):
         for d in range(D):
             s = pd.Series(x_np[b, :, d], index=idx)
-            """
-            잠시 kalman filter로 실험중!
             trend_np[b, :, d] = apply_kalman_smoother(
-                s, observation_covariance, transition_covariance
-            ).values
-            """
-            trend_np[b, :, d] = apply_kalman_filter(
                 s, observation_covariance, transition_covariance
             ).values
     return torch.from_numpy(trend_np).to(inputs.device).float()
@@ -101,7 +95,7 @@ class OUR_TD:
             torch.cuda.empty_cache()
 
         #attr = attr_sum / n_alphas ### completeness 실험 시 이부분 주석 풀기
-        #attr = attr.mean(dim=0)    ### completeness 실험 시 이부분 주석 풀기 (대신 아래 3줄 주석 처리)
+        #attr = attr.mean(dim=0)    ### completeness 실험 시 이부분 주석 풀기 (대신 아래 N_free 3줄 주석 처리)
 
         N_free = time_mask.sum(dim=0)
         attr = attr_sum.sum(dim=0) / (n_alphas * N_free.clamp_min(1))
@@ -171,7 +165,7 @@ class OUR_TD:
 
         # 원본 x에서 trend / residual 추출 (mask 무관, 한 번만)
         trend    = compute_trend_kalman(inputs, kalman_obs_cov, kalman_trans_cov)  # [B,T,D]
-        # residual = inputs - trend  (사용 시 inputs_s - trend_s 로 자동 계산됨)
+        # residual = inputs - trend  (사용 시 inputs_s - trend_s 로 자동 계산되도록!)
 
         baselines_s = baselines.unsqueeze(0).expand(n_samples, B, T, D).contiguous()
         inputs_s    = inputs.unsqueeze(0).expand(n_samples, B, T, D).contiguous()
