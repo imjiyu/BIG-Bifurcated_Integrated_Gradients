@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-in_path  = Path("results_last/full_eval.csv")
+in_path = Path("results_our/full_eval.csv")
 out_path = Path("results_table/result_CPD_summary.csv")
 out_path.parent.mkdir(parents=True, exist_ok=True)
 
