@@ -101,6 +101,11 @@ seg/min/max는 **데이터셋마다 다르다**(아래 표). 안 맞으면 `File
 
 (`testbs`는 GPU 메모리에 맞춘 배치 크기일 뿐 결과 수치에 영향 없음.)
 
+**F. 모든 faithfulness 평가는 10% masking 기준이다: `area(topk) 0.1` + `top 0` + baseline `0.0` (전 실험 공통).**
+`cumulative_difference`는 `top != 0`이면 area 비율을 **무시하고 고정 `top` 개수**로 마스킹한다.
+- `eval_cpd_cpp.py` 는 기본값이 `top=0`, `topk=0.1` 이라 별도 지정 없이 10% 비율 마스킹으로 동작한다 (정식 재현 경로).
+- 반면 TIMING 원본 코드의 `main_preserve*`·`main.py` 는 `--top` 기본값이 **50**이므로, 10% 비율 마스킹을 쓰려면 반드시 **`--top 0`** 을 명시해야 한다. (안 주면 area 0.1이 무시되고 고정 50칸만 마스킹)
+
 ---
 
 ## Reproduction
