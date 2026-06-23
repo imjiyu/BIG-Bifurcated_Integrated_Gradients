@@ -3,12 +3,12 @@ import numpy as np
 from pathlib import Path
 import glob
 
-# 경로 설정
+# 경로 설정 -> 실험 바꾸면 '### 경로 수정' 부분 바꿔서 따로 저장
 ### timing100_dir = Path("results_100_jiyu")
-abs_eval_dir  = Path("results_filter") ### 경로 수정
+abs_eval_dir  = Path("results_our") ### 경로 수정
 
-raw_out_path   = Path("results_table_filter/result_compare_raw.csv") ### 경로 수정
-round_out_path = Path("results_table_filter/result_compare.csv") ### 경로 수정
+raw_out_path   = Path("results_table/result_compare_raw.csv") ### 경로 수정
+round_out_path = Path("results_table/result_compare.csv") ### 경로 수정
 raw_out_path.parent.mkdir(parents=True, exist_ok=True)
 
 # 공통 metric 순서
