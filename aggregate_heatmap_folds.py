@@ -1,19 +1,9 @@
 import os
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 
-
-TREND_COLOR = "#009E73"       # green
-RESIDUAL_COLOR = "#7B3294"    # purple
-NEUTRAL_COLOR = "#F7F7F7"
-TOTAL_CMAP = "Greys"
-
-DOMINANCE_CMAP = LinearSegmentedColormap.from_list(
-    "residual_white_trend",
-    [RESIDUAL_COLOR, NEUTRAL_COLOR, TREND_COLOR],
-)
+# 색/cmap 정의와 plot_heatmap 은 positional_analysis 와 공유
+from positional_analysis import plot_heatmap, DOMINANCE_CMAP, TOTAL_CMAP
 
 
 def load_attr(results_dir, data, model_type, key, fold, seed):
@@ -24,57 +14,6 @@ def load_attr(results_dir, data, model_type, key, fold, seed):
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     return np.load(path)  # [B, T, D]
-
-
-def plot_heatmap(
-    mat,
-    save_path,
-    title="",
-    cmap="Greys",
-    vmin=None,
-    vmax=None,
-    channel_names=None,
-):
-    """
-    mat: [T, D]
-    """
-    T, D = mat.shape
-
-    fig_h = max(3.0, min(10.0, 0.35 * D + 2.0))
-    fig, ax = plt.subplots(figsize=(10, fig_h))
-
-    im = ax.imshow(
-        mat.T,
-        aspect="auto",
-        origin="lower",
-        interpolation="nearest",
-        cmap=cmap,
-        vmin=vmin,
-        vmax=vmax,
-        extent=(-0.5, T - 0.5, -0.5, D - 0.5),
-    )
-
-    ax.set_xlabel("time step t")
-    ax.set_ylabel("channel")
-
-    yticks = np.arange(D)
-    ax.set_yticks(yticks)
-
-    if channel_names is not None:
-        ax.set_yticklabels(channel_names)
-    else:
-        ax.set_yticklabels([f"ch{i}" for i in range(D)])
-
-    ax.set_ylim(-0.5, D - 0.5)
-    ax.set_title(title)
-
-    fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-
-    fig.tight_layout()
-    fig.savefig(save_path, dpi=200)
-    plt.close(fig)
-
-    print(f"[saved] {save_path}")
 
 
 def parse_channel_names(channel_names):
