@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-in_path = Path("results_filter/full_eval.csv")
-raw_out_path = Path("results_table_filter/result_TR_raw.csv")
-round_out_path = Path("results_table_filter/result_TR.csv")
+in_path = Path("results_our/full_eval.csv")
+raw_out_path = Path("results_table/result_TR_raw.csv")
+round_out_path = Path("results_table/result_TR.csv")
 
 raw_out_path.parent.mkdir(parents=True, exist_ok=True)
 
