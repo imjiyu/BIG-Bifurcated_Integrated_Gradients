@@ -25,7 +25,7 @@ def parse_channel_names(channel_names):
 def main():
     p = argparse.ArgumentParser()
 
-    p.add_argument("--results_dir", type=str, default="./results_last")
+    p.add_argument("--results_dir", type=str, default="./results_our")
     p.add_argument("--out_dir", type=str, default="./figs_positional")
     p.add_argument("--data", type=str, required=True)
     p.add_argument("--model_type", type=str, default="state")
