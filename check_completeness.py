@@ -196,7 +196,7 @@ def main():
     ap.add_argument("--model", default="state")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--folds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
-    ap.add_argument("--results-dir", default="./results_comp") # results_last로 바꾸면 N_free 버전
+    ap.add_argument("--results-dir", default="./results_comp") # results_our로 바꾸면 N_free 버전
     args = ap.parse_args()
 
     print("[검산] sum(T_signed + R_signed) / (F(x)-F(c))")
