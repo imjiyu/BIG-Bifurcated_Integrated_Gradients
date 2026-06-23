@@ -1,6 +1,7 @@
 # Bifurcated Integrated Gradients (BIG)
-**Trend-Residual Path Decomposition for Time Series Attribution**
-KCC 2026 XAI Workshop · Jiyu Lim, Jisu Yeo, Haksoo Lim, Jaesik Choi (KAIST)
+**Trend-Residual Path Decomposition for Time Series Attribution**  
+KCC 2026 XAI Workshop  
+Jiyu Lim, Jisu Yeo, Haksoo Lim, Jaesik Choi (KAIST)
 
 ---
 
