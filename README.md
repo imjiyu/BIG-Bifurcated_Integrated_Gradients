@@ -91,7 +91,7 @@ seg/min/max는 **데이터셋마다 다르다**(아래 표). 안 맞으면 `File
 
 **데이터셋별 segment 설정 (모든 실험 공통):**
 
-| dataset | num_segments | min_seg_len | max_seg_len | testbs |
+| dataset | num_segments | min_seg_len | max_seg_len | (testbs: GPU에 따라 조정 가능) |
 |---|---|---|---|---|
 | epilepsy | 10 | 10 | 10 | 5 |
 | freezer | 5 | 10 | 100 | 5 |
