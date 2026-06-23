@@ -247,7 +247,7 @@ python real/main_td_viz.py --explainers our_td --data boiler --fold 0 --testbs 5
   --viz --viz_dir ./viz_td/boiler --viz_n_samples 5 --viz_channels 6 --device cuda:0
 ```
 
-| dataset | num/min/max | viz_channels |
+| dataset | num/min/max | viz_channel number |
 |---|---|---|
 | boiler | 50/1/36 | 6 |
 | wafer | 5/10/152 | 0 |
