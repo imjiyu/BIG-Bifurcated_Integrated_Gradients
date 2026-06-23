@@ -103,8 +103,8 @@ def main():
     p.add_argument("--testbs", type=int, default=30)
     p.add_argument("--topk", type=float, default=0.1, help="--areas in main.py")
     p.add_argument("--top", type=int, default=0)
-    p.add_argument("--npy_dir", default="results_filter")
-    p.add_argument("--output_file", default="results_filter/full_eval.csv")
+    p.add_argument("--npy_dir", default="results_our")
+    p.add_argument("--output_file", default="results_our/full_eval.csv")
     p.add_argument("--device", default="cuda:0")
     p.add_argument(
         "--methods",
