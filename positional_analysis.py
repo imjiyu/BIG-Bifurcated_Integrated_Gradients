@@ -726,8 +726,8 @@ def plot_heatmap(
 def main():
     p = argparse.ArgumentParser()
 
-    p.add_argument("--results_dir", type=str, default="./results_filter")
-    p.add_argument("--out_dir", type=str, default="./figs_positional_filter")
+    p.add_argument("--results_dir", type=str, default="./results_our")
+    p.add_argument("--out_dir", type=str, default="./figs_positional")
 
     p.add_argument(
         "--data",
