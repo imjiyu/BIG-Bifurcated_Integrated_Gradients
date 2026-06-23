@@ -202,7 +202,7 @@ def plot_5fold_trend_share(summary, save_path, title=""):
 def main():
     p = argparse.ArgumentParser()
 
-    p.add_argument("--out_dir", type=str, default="./figs_positional_filter")
+    p.add_argument("--out_dir", type=str, default="./figs_positional")
     p.add_argument("--data", type=str, required=True)
     p.add_argument("--model_type", type=str, default="state")
     p.add_argument("--seed", type=int, default=42)
