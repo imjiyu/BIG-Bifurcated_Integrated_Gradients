@@ -1,11 +1,3 @@
-"""
-전체 샘플 평균 attribution heatmap 생성 (데이터셋별).
-fold 0~4 concat → 샘플 축 평균 → 채널별 1 row heatmap.
-
-Usage:
-    python viz_mean.py --data all
-    python viz_mean.py --data PAM
-"""
 import argparse
 import os
 import sys
@@ -30,7 +22,7 @@ CFG = {
     "wafer":    (Wafer,     1, 2, 152, True),
     "freezer":  (Freezer,   1, 2, 301, True),
 }
-### boiler 잠시 rsd 로 바꿈! 
+
 NPY_PATTERNS = {
     "PAM": (
         "PAM_state_timing_td_trend_kalman_seg10_min10_max600_result_{fold}_42.npy",
@@ -85,24 +77,28 @@ def build_datamodule(data, fold, seed):
         return DM(n_folds=5, fold=fold, seed=seed)
     return DM(fold=fold, seed=seed)
 
-def select_top_channels(mean_abs_trend, mean_abs_resid, topk=5):
+def select_top_channels(mean_abs_trend, mean_abs_resid, topk=3):
     """
     mean_abs_trend / mean_abs_resid : (T, C)
+    topk <= 0 이면 전체 채널을 원래 순서(0..C-1)로 반환,
+    그 외에는 channel_score = mean_t(|Trend|) + mean_t(|Residual|) 상위 topk 채널 반환!
 
     중요도 기준:
     channel_score = mean_t(|Trend|) + mean_t(|Residual|)
     """
+    C = mean_abs_trend.shape[1]
+    if topk <= 0:
+        return np.arange(C)   # 전채널 모드
+
     ch_score = mean_abs_trend.mean(axis=0) + mean_abs_resid.mean(axis=0)
-
-    topk = min(topk, ch_score.shape[0])
+    topk = min(topk, C)
     top_channels = np.argsort(ch_score)[::-1][:topk]
-
     return top_channels
 
 def plot_mean_heatmap(mean_trend, mean_resid, channel_indices,
                       save_path, tag, signed):
     """
-    mean_trend / mean_resid : (T, C) — 샘플 평균
+    mean_trend / mean_resid : (T, C) - 샘플 평균
     채널별로 row 1개씩, Trend / Residual 나란히 표시
     """
     T, C = mean_trend.shape
@@ -248,10 +244,10 @@ def main():
     p.add_argument("--data", default="all",
                    choices=list(CFG) + ["all"])
     p.add_argument("--seed",       type=int, default=42)
-    p.add_argument("--npy_dir",    default="results_last")
-    p.add_argument("--viz_dir",    default="viz_out_last_top3")
+    p.add_argument("--npy_dir",    default="results_our")
+    p.add_argument("--viz_dir",    default="viz_out_top3")
     p.add_argument("--topk_channels", type=int, default=3,
-                   help="중요도 기준으로 표시할 상위 채널 수")
+                   help="중요도 상위 채널 수. 0 이하면 전채널(원래 순서)로 표시")
     args = p.parse_args()
 
     datasets = list(CFG) if args.data == "all" else [args.data]
