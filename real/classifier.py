@@ -86,6 +86,13 @@ class MimicClassifierNet(Net):
                              n_classes=n_state, 
                              dim=128)
 
+        elif model_type == "linear":
+            classifier = Linear(
+                d_inp=feature_size,
+                max_len=n_timesteps,
+                n_classes=n_state,
+            ) 
+
         super().__init__(
             layers=classifier,
             loss=loss,
