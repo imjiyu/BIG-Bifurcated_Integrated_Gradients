@@ -23,7 +23,6 @@ simulated_data_l2x/
 
 # Models / checkpoints
 model/
-models/
 *.pt
 *.pth
 *.ckpt
