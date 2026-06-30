@@ -7,6 +7,7 @@ from typing import Callable, Union
 from synthetic.hmm.classifier import StateClassifier
 from models.transformer import TransformerClassifier
 from models.cnn import CNN
+from models.linear import Linear
 
 from tint.models import Net
 
