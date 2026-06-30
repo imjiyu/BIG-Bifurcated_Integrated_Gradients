@@ -1263,7 +1263,7 @@ def parse_args():
         "--model_type",
         type=str,
         default="state",
-        choices=["state", "mtand", "seft", "transformer", "cnn"],
+        choices=["state", "mtand", "seft", "transformer", "cnn", "linear"],
     )
     parser.add_argument(
         "--testbs",
