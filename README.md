@@ -38,7 +38,7 @@ pip install -r requirement.txt
 | `run_td_all.sh` | 5 dataset × 5 fold 일괄 attribution 생성 | `results_our/*.npy` |
 | `check_completeness.py` | 경로 완전성 진단 | Table 2 |
 | `eval_cpd_cpp.py` | 저장된 npy로 CPD/AUCC + 5개 metric 재계산 | `*/full_eval.csv` |
-| `TR_table.py` | Trend vs Residual metric 집계 | Table 3 (metric) |
+| `TR_table.py` | Trend vs Residual metric 집계 | Table 3 (metric) `results_table/*.csv` |
 | `TR100_compare.py` | `|T+R|` vs `|T|+|R|` 집계 | Table 4 |
 | `100_state_zero_baseline.py` | TIMING-100 baseline 집계 | Table 4·6 (TIMING 행) |
 | `positional_analysis.py` | fold별 positional 통계·그림 | Figure 2 (per-fold) |
