@@ -38,8 +38,7 @@ pip install -r requirement.txt
 | `run_td_all.sh` | 5 dataset × 5 fold 일괄 attribution 생성 | `results_our/*.npy` |
 | `check_completeness.py` | 경로 완전성 진단 | Table 2 |
 | `eval_cpd_cpp.py` | 저장된 npy로 CPD/AUCC + 5개 metric 재계산 | `*/full_eval.csv` |
-| `TR_all.py` | Trend vs Residual metric 집계 | Table 3 (metric) |
-| `TR_all_fold_summary.py` | Ratio% + Dominant 판정 | Table 3 (ratio/dominant) |
+| `TR_table.py` | Trend vs Residual metric 집계 | Table 3 (metric) |
 | `TR100_compare.py` | `|T+R|` vs `|T|+|R|` 집계 | Table 4 |
 | `100_state_zero_baseline.py` | TIMING-100 baseline 집계 | Table 4·6 (TIMING 행) |
 | `positional_analysis.py` | fold별 positional 통계·그림 | Figure 2 (per-fold) |
@@ -161,8 +160,7 @@ done
 집계:
 
 ```bash
-python TR_all.py               # → results_table/result_TR.csv (CPD/AUCC/Comp/Suff/Acc/CE/Log-odds, mean±std)
-python TR_all_fold_summary.py  # → results_table/result_CPD_summary.csv (Ratio% + Dominant(5/5))
+python TR_table.py          # Table 3 생성 및 results_table 폴더 저장
 ```
 
 > 참고: `eval_cpd_cpp.py`는 현재 CPD만 출력한다(코드 내 CPP 루프 주석 처리됨). `TR_all.py`의 CPP 컬럼은 비어 나오므로 무시.
