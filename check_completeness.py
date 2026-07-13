@@ -4,14 +4,13 @@ import numpy as np
 
 
 SEG_CONFIG = {
-    "boiler":   {"num_segments": 50, "min_seg_len": 1,  "max_seg_len": 36},
-    "epilepsy": {"num_segments": 10, "min_seg_len": 10, "max_seg_len": 10},
-    "freezer":  {"num_segments": 5,  "min_seg_len": 10, "max_seg_len": 100},
-    "wafer":    {"num_segments": 5,  "min_seg_len": 10, "max_seg_len": 152},
-    "PAM":      {"num_segments": 10, "min_seg_len": 10, "max_seg_len": 600},
+    "boiler":   {"num_segments": 50, "min_seg_len": 1,  "max_seg_len": 48},
+    "epilepsy": {"num_segments": 50, "min_seg_len": 1,  "max_seg_len": 48},
+    "wafer":    {"num_segments": 50, "min_seg_len": 1,  "max_seg_len": 48},
+    "PAM":      {"num_segments": 50, "min_seg_len": 1,  "max_seg_len": 48},
 }
 
-DATASETS = ["boiler", "epilepsy", "freezer", "wafer", "PAM"]
+DATASETS = ["boiler", "epilepsy", "wafer", "PAM"]
 
 
 def make_seg(data):
@@ -24,9 +23,11 @@ def make_seg(data):
 
 
 def npy_path(results_dir, data, model, key, fold, seed):
+    lam_tag = "_lam10.0x10.0"
+
     return os.path.join(
         results_dir,
-        f"{data}_{model}_{key}_result_{fold}_{seed}.npy"
+        f"{data}_{model}_{key}{lam_tag}_result_{fold}_{seed}.npy"
     )
 
 
@@ -196,7 +197,7 @@ def main():
     ap.add_argument("--model", default="state")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--folds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
-    ap.add_argument("--results-dir", default="./results_comp") # results_our로 바꾸면 N_free 버전
+    ap.add_argument("--results-dir", default="./results_pna_10x10", help="PNA-BIG attribution 결과 폴더",)
     args = ap.parse_args()
 
     print("[검산] sum(T_signed + R_signed) / (F(x)-F(c))")
