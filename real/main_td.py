@@ -72,6 +72,13 @@ def main(
     lambda_2: float = 1.0,
     lambda_3: float = 1.0,
     num_segments: int = 50,
+    baseline: str = "zero",
+    pna_feature: str = "hidden",
+    pna_ka: int = 5,
+    ### 하이퍼파라미터 튜닝하자!
+    pna_lam0: float = 1.0,     # 추가
+    pna_lamf: float = 1.0,     # 추가
+    eval_split: str = "test",  # 추가
     min_seg_len: int = 1,
     max_seg_len: int = 48,
     mask_lr: float = 0.1,
@@ -81,6 +88,8 @@ def main(
     top: int = 50,
     skip_train_timex: bool = True,
     prob: float = 0.1 ,
+    lr: float = None,   # 추가!
+    epochs: int = 100,   # 추가!!
 ):
     # Get accelerator and device
     accelerator = device.split(":")[0]
@@ -194,7 +203,7 @@ def main(
             hidden_size=200,
             regres=True,
             loss="cross_entropy",
-            lr=0.0001,
+            lr=(lr if lr is not None else 0.0001),
             l2=1e-3,
             model_type=model_type
         )
@@ -204,7 +213,7 @@ def main(
 
     # Train classifier
     trainer = Trainer(
-        max_epochs=100,
+        max_epochs=epochs,
         accelerator=accelerator,
         devices=device_id,
         deterministic=deterministic,
@@ -222,12 +231,38 @@ def main(
         classifier.load_state_dict(th.load("./model/{}/{}_classifier_{}_{}_no_imputation".format(data, model_type, fold, seed)))
     # Get data for explainers
     with lock:
+        ### 하이퍼파라미터 튜닝하자!
+        #x_train = datamodule.preprocess(split="train")["x"].to(device)
+        #x_test = datamodule.preprocess(split="test")["x"].to(device)
+        #y_train = datamodule.preprocess(split="train")["y"].to(device)
+        #y_test = datamodule.preprocess(split="test")["y"].to(device)
+        #mask_train = datamodule.preprocess(split="train")["mask"].to(device)
+        #mask_test = datamodule.preprocess(split="test")["mask"].to(device)
         x_train = datamodule.preprocess(split="train")["x"].to(device)
-        x_test = datamodule.preprocess(split="test")["x"].to(device)
+        x_test = datamodule.preprocess(split=eval_split)["x"].to(device)      # "test"→eval_split
         y_train = datamodule.preprocess(split="train")["y"].to(device)
-        y_test = datamodule.preprocess(split="test")["y"].to(device)
+        y_test = datamodule.preprocess(split=eval_split)["y"].to(device)      # "test"→eval_split
         mask_train = datamodule.preprocess(split="train")["mask"].to(device)
-        mask_test = datamodule.preprocess(split="test")["mask"].to(device)
+        mask_test = datamodule.preprocess(split=eval_split)["mask"].to(device)  # "test"→eval_split
+
+        ### 시간단축        
+        ### 튜닝 속도용: val 1000개만 (최종 test 평가 땐 이 블록 지우기)
+        ### 주의: val attribution과 faithfulness 평가가 같은 샘플 순서를 쓰도록 idx 저장
+        if eval_split == "val":
+            idx_path = f"./results_pna/{data}_{model_type}_val_idx_{fold}_{seed}.npy"
+            os.makedirs("./results_pna", exist_ok=True)
+
+            if os.path.exists(idx_path):
+                idx_cpu = th.from_numpy(np.load(idx_path)).long()
+            else:
+                idx_cpu = th.randperm(x_test.shape[0])[:1000]
+                tmp_path = f"{idx_path}.{os.getpid()}.tmp.npy"
+                np.save(tmp_path, idx_cpu.numpy())
+                os.replace(tmp_path, idx_path)
+
+            idx = idx_cpu.to(x_test.device)
+            x_test, mask_test, y_test = x_test[idx], mask_test[idx], y_test[idx]
+        ###
 
     # Switch to eval
     classifier.eval()
@@ -247,7 +282,20 @@ def main(
     from torch.utils.data import DataLoader, TensorDataset
     test_dataset = TensorDataset(x_test, mask_test)
     test_loader = DataLoader(test_dataset, batch_size=testbs, shuffle=False)
-    
+
+    ### plain classification accuracy (faithfulness Acc.와는 다른 분류acc임!)
+    preds = []
+    with th.no_grad():
+        for xb, mb in test_loader:                 # shuffle=False라 y_test 순서와 일치
+            probs = classifier.predict(xb.to(device), mask=mb.to(device))
+            preds.append(probs.argmax(-1).cpu())
+    preds = th.cat(preds)
+    clf_acc = (preds == y_test.cpu().long()).float().mean().item()
+    print(f"[CLF_ACC] data={data} model={model_type} fold={fold} acc={clf_acc:.4f}")
+    os.makedirs("./results_our", exist_ok=True)
+    np.save(f"./results_our/{data}_{model_type}_clfacc_{fold}_{seed}.npy", np.array(clf_acc))
+    ###
+
     if model_type == "state":
         temporal_additional_forward_args = (False, False, False)
     else:
@@ -773,7 +821,7 @@ def main(
             x_batch = batch[0].to(device)
             data_mask = batch[1].to(device)
             batch_size = x_batch.shape[0]
-            timesteps = timesteps[:batch_size, :]
+            timesteps_b = timesteps[:batch_size, :]
 
             from captum._utils.common import _run_forward
 
@@ -781,7 +829,7 @@ def main(
                 partial_targets = _run_forward(
                     classifier,
                     x_batch,
-                    additional_forward_args=(data_mask, timesteps, False),
+                    additional_forward_args=(data_mask, timesteps_b, False),
                 )
             partial_targets = th.argmax(partial_targets, -1)
 
@@ -790,8 +838,8 @@ def main(
                 x_batch,
                 baselines=x_batch * 0,
                 targets=partial_targets,
-                additional_forward_args=(data_mask, timesteps, False),
-                n_samples=50,
+                additional_forward_args=(data_mask, timesteps_b, False),
+                n_samples=100, # timing 100step 맞추기!
                 num_segments=num_segments,
                 min_seg_len=min_seg_len,
                 max_seg_len=max_seg_len,
@@ -800,49 +848,109 @@ def main(
             our_results.append(attr_batch.detach().cpu())
 
         # attr["timeig_sample50_seg25_min7_max30"] = th.cat(our_results, dim=0)
-        attr[f"timing_sample50_seg{num_segments}_min{min_seg_len}_max{max_seg_len}"] = th.cat(our_results, dim=0)
+        attr[f"timing_sample100_seg{num_segments}_min{min_seg_len}_max{max_seg_len}"] = th.cat(our_results, dim=0) # 아.. 이름도 100으로 바꿔야함
     
     ###
-    # real/main.py 의 if "our" 블록 (L765~803) 바로 아래에 추가
     if "our_td" in explainers: 
-        from attribution.explainers_td import OUR_TD
-        explainer = OUR_TD(classifier.predict)
-        
+        from attribution.explainers_pna import OUR_PNA
+        explainer = OUR_PNA(classifier.predict)
+
+        # === 루프 밖: PNA pool 통계 1회 캐싱 ===
+        pna_cache = None
+        global_anchors = None 
+        if baseline in ("pna", "na"):
+            from attribution.pna import (
+                build_pna_cache, select_pna_baselines,
+                select_global_neutral_anchors,
+            )
+            
+            #pna_cache = build_pna_cache(x_train, classifier, feature=pna_feature,
+            #                            lam0=pna_lam0, lamf=pna_lamf)   # x_train 정규화돼 있어 input_mu/sd 불필요 / 1.0, 1.0 → pna_lam0,pna_lamf
+            ### 하이퍼파라미터 튜닝하자!
+            g = th.Generator().manual_seed(seed)
+            idx = th.randperm(x_train.shape[0], generator=g)[:1000]
+            pool = x_train[idx]
+            pna_cache = build_pna_cache(pool, classifier, feature=pna_feature,
+                                        lam0=pna_lam0, lamf=pna_lamf)
+            
+            # --- (opt-in) 생성 시점 anchor 저장: 재현 증명용. SAVE_ANCHOR_IDX=1 일 때만 ---
+            if baseline == "pna" and os.environ.get("SAVE_ANCHOR_IDX") == "1":
+                from attribution.pna import select_pna_indices
+                _idx_all = []
+                for _b in test_loader:                     # attribution 과 '동일 순서'
+                    _xb = _b[0].to(device)
+                    _idx_all.append(
+                        select_pna_indices(_xb, pna_cache, classifier, Ka=pna_ka).cpu()
+                    )
+                _anchor_idx = th.cat(_idx_all, 0)          # [N, Ka]
+                _pool_p = f"./results_pna/{data}_{model_type}_pool_{fold}_{seed}.npy"
+                _idx_p  = (f"./results_pna/{data}_{model_type}_anchoridx_"
+                           f"lam{pna_lam0}x{pna_lamf}_{fold}_{seed}.npy")
+                np.save(_pool_p, pool.detach().cpu().numpy())
+                np.save(_idx_p, _anchor_idx.numpy())
+                print(f"[SAVE_ANCHOR_IDX] saved {_pool_p} , {_idx_p} "
+                      f"idx{tuple(_anchor_idx.shape)}")
+            
+            if baseline == "na":
+                # 전체 실행 1회: global fixed anchor [Ka, T, D]
+                global_anchors = select_global_neutral_anchors(pna_cache, Ka=pna_ka)
+                print(f"[NA] global fixed anchors selected once: "
+                      f"{tuple(global_anchors.shape)}")
+
         trend_results, resid_results, fxc_results = [], [], []
         for batch in tqdm(test_loader):
             x_batch = batch[0].to(device)
             data_mask = batch[1].to(device)
             batch_size = x_batch.shape[0]
             timesteps_b = timesteps[:batch_size, :]
-        
+
             from captum._utils.common import _run_forward
-        
             with th.autograd.set_grad_enabled(False):
                 partial_targets = _run_forward(
                     classifier, x_batch,
                     additional_forward_args=(data_mask, timesteps_b, False),
                 )
             partial_targets = th.argmax(partial_targets, -1)
-        
-            trend_attr, resid_attr, fxc = explainer.attribute_trend_residual_segments(
-                x_batch,
-                baselines=x_batch * 0,
-                targets=partial_targets,
-                additional_forward_args=(data_mask, timesteps_b, False),
-                n_samples=50,
-                num_segments=num_segments,
-                min_seg_len=min_seg_len,
-                max_seg_len=max_seg_len,
-                kalman_obs_cov=1.0,
-                kalman_trans_cov=0.01,
-                n_alphas=50, 
-                alpha_chunk=10, # OOM 방지... 추가!
-            )
+
+            # === baseline anchor 선택 ===
+            if baseline == "pna":
+                anchors = select_pna_baselines(x_batch, pna_cache, classifier, Ka=pna_ka)  # [B,Ka,T,D]
+            elif baseline == "na":
+                # 모든 샘플이 같은 global anchor 공유 → batch 차원으로 expand
+                B_cur = x_batch.shape[0]
+                anchors = global_anchors.unsqueeze(0).expand(
+                    B_cur, *global_anchors.shape
+                ).contiguous()                          # [B,Ka,T,D]
+            else:
+                anchors = (x_batch * 0).unsqueeze(1)    # [B,1,T,D]  (zero = Ka=1)
+
+            # === anchor별 attribution 계산 후 평균 (식 9) ===
+            t_list, r_list, f_list = [], [], []
+            for k in range(anchors.shape[1]):
+                t_k, r_k, f_k = explainer.attribute_order_averaged(
+                    x_batch,
+                    baselines=anchors[:, k],
+                    targets=partial_targets,
+                    additional_forward_args=(data_mask, timesteps_b, False),
+                    n_samples=1,
+                    num_segments=num_segments,
+                    min_seg_len=min_seg_len,
+                    max_seg_len=max_seg_len,
+                    kalman_obs_cov=1.0,
+                    kalman_trans_cov=0.01,
+                    n_alphas=50, # 얘가 step 수! 
+                    alpha_chunk=10,
+                )
+                t_list.append(t_k); r_list.append(r_k); f_list.append(f_k)
+
+            trend_attr = th.stack(t_list, 0).mean(0)
+            resid_attr = th.stack(r_list, 0).mean(0)
+            fxc        = th.stack(f_list, 0).mean(0)   # = F(x) - mean_k F(c_k) (식 10)
 
             trend_results.append(trend_attr.detach().cpu())
             resid_results.append(resid_attr.detach().cpu())
             fxc_results.append(fxc.detach().cpu())
-    
+
         SEG = f"kalman_seg{num_segments}_min{min_seg_len}_max{max_seg_len}"
 
         trend_signed = th.cat(trend_results, dim=0)
@@ -855,6 +963,53 @@ def main(
         attr[f"timing_td_fxc_{SEG}"]             = th.cat(fxc_results, dim=0)  # ← completeness 검증용
         attr[f"timing_td_combined_{SEG}"]  = (trend_signed + resid_signed).abs()   # |T+R| 추가
         attr[f"timing_td_T_plus_R_{SEG}"]  = trend_signed.abs() + resid_signed.abs()  # |T|+|R| 추가
+    ###
+
+
+    # ============================================================
+    # TIMING-global (completeness form) 검산용
+    #   저장 key (SEG = seg{num_segments}_min{min}_max{max}):
+    #     timing_comp_signed_{SEG} : global-normalized signed attr (합이 completeness 대상)
+    #     timing_comp_fxc_{SEG}    : F(x) - E_M[F(cM)]  (완전성 분모)
+    #   → check_completeness_timing.py 로 CR 계산
+    #   실행: --explainers timing_comp --baseline zero   (또는 our_td/our 와 함께 나열)
+    #   n_samples=100: 논문 TIMING single-path 100 step budget에 맞춤
+    # ============================================================
+    if "timing_comp" in explainers:
+        from attribution.explainers import OUR
+        explainer = OUR(classifier.predict)
+
+        comp_results, fxc_results = [], []
+        for batch in tqdm(test_loader):
+            x_batch = batch[0].to(device)
+            data_mask = batch[1].to(device)
+            batch_size = x_batch.shape[0]
+            timesteps_b = timesteps[:batch_size, :]
+
+            from captum._utils.common import _run_forward
+            with th.autograd.set_grad_enabled(False):
+                partial_targets = _run_forward(
+                    classifier, x_batch,
+                    additional_forward_args=(data_mask, timesteps_b, False),
+                )
+            partial_targets = th.argmax(partial_targets, -1)
+
+            attr_signed, fxc = explainer.attribute_random_time_segments_completeness(
+                x_batch,
+                baselines=x_batch * 0,
+                targets=partial_targets,
+                additional_forward_args=(data_mask, timesteps_b, False),
+                n_samples=100,                     # ← TIMING 100 step
+                num_segments=num_segments,
+                min_seg_len=min_seg_len,
+                max_seg_len=max_seg_len,
+            )
+            comp_results.append(attr_signed.detach().cpu())
+            fxc_results.append(fxc.detach().cpu())
+
+        SEG = f"seg{num_segments}_min{min_seg_len}_max{max_seg_len}"
+        attr[f"timing_comp_signed_{SEG}"] = th.cat(comp_results, dim=0)
+        attr[f"timing_comp_fxc_{SEG}"]    = th.cat(fxc_results, dim=0)
     ###
 
     if "our_signed" in explainers:
@@ -1026,138 +1181,26 @@ def main(
         .repeat(data_len, 1)
     )
 
-### 평가 부분은 main_preserve_td.py 에서 진행하므로 주석 처리
-
-#    with open(output_file, "a") as fp, lock:
-#        for i, baselines in enumerate([x_avg, 0.0]):
-#            for topk in areas:
-#                for k, v in attr.items():
-#                    cum_diff, AUCC, cum_50_diff, _ = cumulative_difference(
-#                        classifier,
-#                        x_test,
-#                        attributions=v.cpu(),
-#                        baselines=baselines,
-#                        topk=topk,
-#                        top=args.top,
-#                        testbs=testbs,
-#                        additional_forward_args=(mask_test, None, False),
-#                    )
-#                    
-#                    
-#                    
-#                    total_acc = 0.0
-#                    total_comp = 0.0
-#                    total_ce = 0.0
-#                    total_lodds = 0.0
-#                    total_suff = 0.0
-#                    total_samples = 0
-#
-#                    # 2. Loop over batches
-#                    for batch_idx, batch in enumerate(test_loader):
-#                        # batch = (input_tensor, data_mask, ...)
-#                        x_batch = batch[0].to(device)
-#                        data_mask_batch = batch[1].to(device)
-#                        batch_size = x_batch.shape[0]
-#
-#                        # If timesteps is sized for the entire dataset, slice for this batch
-#                        # Example (adjust accordingly if needed):
-#                        timesteps_batch = timesteps[batch_idx * batch_size : batch_idx * batch_size + batch_size]
-#
-#                        # Prepare baselines for the batch
-#                        # If baselines is a tensor like x_avg, slice it for the batch dimension
-#                        if isinstance(baselines, th.Tensor):
-#                            baselines_batch = baselines[batch_idx * batch_size : batch_idx * batch_size + batch_size]
-#                            baselines_batch = baselines_batch.to(device)
-#                        else:
-#                            # e.g., if baselines=0.0 or a scalar, you might just keep it as-is
-#                            # Or replicate it: baselines_batch = torch.zeros_like(x_batch)
-#                            baselines_batch = baselines
-#
-#                        # Similarly slice the attribution tensor 'v'
-#                        v_batch = v[batch_idx * batch_size : batch_idx * batch_size + batch_size].to(device)
-#
-#                        # 3. Compute metrics for this batch
-#                        acc = accuracy(
-#                            classifier,
-#                            x_batch,
-#                            attributions=v_batch,
-#                            baselines=baselines_batch,
-#                            topk=topk,
-#                            additional_forward_args=(data_mask_batch, timesteps_batch, False)
-#                        )
-#                        comp = comprehensiveness(
-#                            classifier,
-#                            x_batch,
-#                            attributions=v_batch,
-#                            baselines=baselines_batch,
-#                            topk=topk,
-#                            additional_forward_args=(data_mask_batch, timesteps_batch, False)
-#                        )
-#                        ce = cross_entropy(
-#                            classifier,
-#                            x_batch,
-#                            attributions=v_batch,
-#                            baselines=baselines_batch,
-#                            topk=topk,
-#                            additional_forward_args=(data_mask_batch, timesteps_batch, False)
-#                        )
-#                        l_odds = log_odds(
-#                            classifier,
-#                            x_batch,
-#                            attributions=v_batch,
-#                            baselines=baselines_batch,
-#                            topk=topk,
-#                            additional_forward_args=(data_mask_batch, timesteps_batch, False)
-#                        )
-#                        suff = sufficiency(
-#                            classifier,
-#                            x_batch,
-#                            attributions=v_batch,
-#                            baselines=baselines_batch,
-#                            topk=topk,
-#                            additional_forward_args=(data_mask_batch, timesteps_batch, False)
-#                        )
-#
-#                        # 4. Accumulate results (multiply by batch_size if metrics are averages)
-#                        #    If your metric function already returns a sum, you may not need to multiply.
-#                        total_acc += acc * batch_size
-#                        total_comp += comp * batch_size
-#                        total_ce += ce * batch_size
-#                        total_lodds += l_odds * batch_size
-#                        total_suff += suff * batch_size
-#                        total_samples += batch_size
-#                        
-#                    mean_acc = total_acc / total_samples
-#                    mean_comp = total_comp / total_samples
-#                    mean_ce = total_ce / total_samples
-#                    mean_lodds = total_lodds / total_samples
-#                    mean_suff = total_suff / total_samples
-#
-#                    fp.write(str(seed) + ",")
-#                    fp.write(str(fold) + ",")
-#                    fp.write(baselines_dict[i] + ",")
-#                    fp.write(str(topk) + ",")
-#                    fp.write(k + ",")
-#                    fp.write(str(lambda_1) + ",")
-#                    fp.write(str(lambda_2) + ",")
-#                    fp.write(str(lambda_3) + ",")
-#                    fp.write(f"{cum_50_diff:.4},")
-#                    fp.write(f"{cum_diff:.4},")
-#                    fp.write(f"{AUCC:.4},")
-#                    fp.write(f"{mean_acc:.4},")
-#                    fp.write(f"{mean_comp:.4},")
-#                    fp.write(f"{mean_ce:.4},")
-#                    fp.write(f"{mean_lodds:.4},")
-#                    fp.write(f"{mean_suff:.4}")
-#                    fp.write("\n")
-
-    if not os.path.exists("./results_our/"): ### 실험에 따라 폴더 바꾸기!! _our=칼만스무더용 / _comp=fxc검산용 / _filter=칼만필터용 
+    if not os.path.exists("./results_our/"): ### 실험에 따라 폴더 바꾸기!! _our=(잠시timing), _pna=칼만스무더용 / _comp=fxc검산용 / _filter=칼만필터용 / _transformer=backbone실험용
         os.makedirs("./results_our/")
+    #for key in attr.keys():
+        #result = attr[key]
+        #if isinstance(result, tuple): result = result[0]
+        #np.save('./results_pna/{}_{}_{}_result_{}_{}.npy'.format(data, model_type, key, fold, seed), result.detach().cpu().numpy())
+    
+    #print(f"{explainers} done")
+    tag = "" if eval_split == "test" else f"_{eval_split}"
+    if baseline == "pna":
+        tag += f"_lam{pna_lam0}x{pna_lamf}"
+    elif baseline == "na":
+        tag += f"_na_lam{pna_lam0}x{pna_lamf}"   # ← na 전용 태그
+
     for key in attr.keys():
         result = attr[key]
         if isinstance(result, tuple): result = result[0]
-        np.save('./results_our/{}_{}_{}_result_{}_{}.npy'.format(data, model_type, key, fold, seed), result.detach().cpu().numpy())
-    
+        np.save('./results_our/{}_{}_{}{}_result_{}_{}.npy'.format(
+            data, model_type, key, tag, fold, seed), result.detach().cpu().numpy())
+
     print(f"{explainers} done")
 
 
@@ -1223,6 +1266,13 @@ def parse_args():
         action="store_true",
         help="Whether to make training deterministic or not.",
     )
+    parser.add_argument("--baseline", type=str, default="zero", choices=["zero", "pna", "na"])
+    parser.add_argument("--pna_feature", type=str, default="hidden", choices=["hidden", "logits"])
+    parser.add_argument("--pna_ka", type=int, default=5)
+    ### 하이퍼파라미터 튜닝하자!
+    parser.add_argument("--pna_lam0", type=float, default=1.0)      # 추가
+    parser.add_argument("--pna_lamf", type=float, default=1.0)      # 추가
+    parser.add_argument("--eval_split", type=str, default="test", choices=["test", "val"])  # 추가
     parser.add_argument(
         "--lambda-1",
         type=float,
@@ -1247,6 +1297,10 @@ def parse_args():
         default=0.01,   
         help="learning rate for mask based method",
     )
+    ### backbone 바꿔서 train 대비 추가
+    parser.add_argument("--lr", type=float, default=None)       # None=데이터셋 기본값 사용!
+    parser.add_argument("--epochs", type=int, default=100)
+    ### backbone 바꿔서 train 대비 추가
     parser.add_argument(
         "--prob",
         type=float,
@@ -1321,11 +1375,21 @@ if __name__ == "__main__":
         fold=args.fold,
         seed=args.seed,
         is_train=args.train,
+        lr=args.lr, 
+        epochs=args.epochs,
         deterministic=args.deterministic,
         lambda_1=args.lambda_1,
         lambda_2=args.lambda_2,
         lambda_3=args.lambda_3,
         num_segments=args.num_segments,
+        baseline=args.baseline,
+        pna_feature=args.pna_feature,
+        pna_ka=args.pna_ka,
+        ### 하이퍼파라미터 튜닝하자!
+        pna_lam0=args.pna_lam0,     # 추가
+        pna_lamf=args.pna_lamf,     # 추가
+        eval_split=args.eval_split, # 추가
+        ### 
         min_seg_len=args.min_seg_len,
         max_seg_len=args.max_seg_len,
         mask_lr=args.mask_lr,
